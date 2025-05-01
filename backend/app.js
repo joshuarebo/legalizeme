@@ -8,6 +8,8 @@ require("dotenv").config();
 
 const tokenRoutes = require("./routes/tokenRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 const { handlePaystackWebhook } = require("./webhooks/paystackWebhook");
 
 const app = express();
@@ -65,6 +67,8 @@ mongoose.connect(process.env.MONGO_URI, {
 // Routes
 app.use("/api/tokens", tokenRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/ai", aiRoutes);
 
 // Webhook endpoints (no rate limit)
 app.post("/webhook/paystack", handlePaystackWebhook);
