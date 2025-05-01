@@ -11,6 +11,9 @@ The official repository for this project is available at [github.com/joshuarebo/
 - **Paystack Payment Integration**: Secure payment processing with Paystack
 - **Token Management**: Monitor and limit token usage per user
 - **Webhook Support**: Handle payment events via secure webhooks
+- **Document Upload**: Analyze legal documents with file upload functionality
+- **AI Integration**: Process text and documents through AI and track token usage
+- **Dashboard Interface**: Modern UI for monitoring token usage and activity
 - **Robust Error Handling**: Comprehensive error handling throughout the application
 - **Security**: Rate limiting, secure headers, and CORS protection
 - **Email Notifications**: Alert users when approaching token limits
@@ -35,6 +38,16 @@ Copy these key components to your existing project:
   - `backend/controllers/tokenController.js`
   - `backend/routes/tokenRoutes.js`
 
+- **AI Integration**:
+  - `backend/middleware/aiMiddleware.js` 
+  - `backend/controllers/aiController.js`
+  - `backend/routes/aiRoutes.js`
+
+- **Frontend Components**:
+  - `frontend/app/components/FileUploadSection.tsx`
+  - `frontend/app/components/TokenUsageDisplay.tsx`
+  - `frontend/app/dashboard/page.tsx`
+
 ### 2. Configuration
 
 1. **Environment Variables**: Add these variables to your existing `.env` file:
@@ -48,6 +61,10 @@ Copy these key components to your existing project:
    
    # Security settings
    VERIFY_WEBHOOK_SIGNATURE=true
+   
+   # AI settings
+   OPENAI_API_KEY=your_openai_api_key_here
+   API_BASE_URL=http://localhost:5000
    ```
 
 2. **Database Integration**:
@@ -59,11 +76,15 @@ Copy these key components to your existing project:
    // In your main Express app file
    const paymentRoutes = require('./path/to/paymentRoutes');
    const tokenRoutes = require('./path/to/tokenRoutes');
+   const aiRoutes = require('./path/to/aiRoutes');
+   const adminRoutes = require('./path/to/adminRoutes');
    const { handlePaystackWebhook } = require('./path/to/paystackWebhook');
    
    // Mount the routes
    app.use("/api/payment", paymentRoutes);
    app.use("/api/tokens", tokenRoutes);
+   app.use("/api/ai", aiRoutes);
+   app.use("/api/admin", adminRoutes);
    app.post("/webhook/paystack", handlePaystackWebhook);
    ```
 
@@ -87,6 +108,52 @@ Copy these key components to your existing project:
 1. Make a small test payment using the production system
 2. Verify that webhooks are being received
 3. Confirm token allocation is working correctly
+4. Test document uploads and AI processing
+
+## Frontend Components
+
+### File Upload Component
+
+The system includes a modern file upload component that supports:
+
+- Drag-and-drop functionality
+- Multiple file selection
+- File type validation (PDF, DOC, DOCX, TXT)
+- Upload progress indication
+- Error handling and validation feedback
+- Token usage estimation
+
+To use the component:
+
+```tsx
+import FileUploadSection from '../components/FileUploadSection';
+
+// In your component:
+const handleFileProcessed = (fileData: {name: string, size: number, tokens: number}) => {
+  // Handle the processed file data
+  console.log(`File ${fileData.name} used ${fileData.tokens} tokens`);
+};
+
+// In your JSX:
+<FileUploadSection onFileProcessed={handleFileProcessed} />
+```
+
+### Token Usage Display
+
+The token usage component provides a visual representation of:
+
+- Available tokens
+- Used tokens
+- Subscription plan details
+- Token refresh date
+- Usage alerts when tokens are running low
+
+```tsx
+import TokenUsageDisplay from '../components/TokenUsageDisplay';
+
+// In your JSX:
+<TokenUsageDisplay userId={userId} />
+```
 
 ## Setup and Installation (Complete System)
 
@@ -95,6 +162,7 @@ Copy these key components to your existing project:
 - Node.js 14.x or higher
 - MongoDB database
 - Paystack account for payment processing
+- OpenAI API key for AI processing
 
 ### Installation
 
@@ -131,6 +199,10 @@ Copy these key components to your existing project:
    RATE_LIMIT_WINDOW_MS=900000
    RATE_LIMIT_MAX=100
    CORS_ORIGIN=http://localhost:3000
+   
+   # AI settings
+   OPENAI_API_KEY=your_openai_api_key_here
+   API_BASE_URL=http://localhost:5000
    ```
 
 3. Start the development server:
@@ -157,6 +229,14 @@ backend/
 ├── webhooks/        # Webhook handlers
 ├── app.js           # Express app setup
 └── server.js        # HTTP server initialization
+
+frontend/
+├── app/             # Next.js app directory
+│   ├── components/  # Reusable UI components
+│   ├── dashboard/   # Dashboard pages
+│   ├── admin/       # Admin pages
+│   └── page.tsx     # Home page
+└── public/          # Static assets
 ```
 
 ## API Documentation
@@ -188,6 +268,19 @@ Authentication is required for all API endpoints except webhooks and health chec
     "tokensToUse": 5000
   }
   ```
+
+### AI API
+
+- `POST /api/ai/process`: Process text through AI
+  ```json
+  {
+    "userId": "user_id",
+    "prompt": "Legal text to analyze",
+    "model": "gpt-4" // optional
+  }
+  ```
+
+- `GET /api/ai/history/:userId`: Get user's AI usage history
 
 ## Webhooks
 
