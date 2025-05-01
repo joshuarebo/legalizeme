@@ -1,208 +1,264 @@
-# Integration Guide for LegalizeMe Payment System
+# Integration Guide for LegalizeMe Payment & Token System
 
-This guide provides detailed instructions for your development team to integrate the LegalizeMe payment and token management system into your existing applications.
-
-## Overview
-
-The LegalizeMe payment system consists of two main components:
-
-1. **Paystack Payment Integration**: Handles payment processing, verification, and webhooks
-2. **Token Management System**: Tracks and limits user token usage based on their subscription plan
+This guide provides step-by-step instructions for integrating the payment and token management system into your existing codebase.
 
 ## Prerequisites
 
-Before integration, ensure your team has:
+Before you begin, ensure you have:
 
-- Access to a Paystack account (for live payments)
-- MongoDB database (or ability to adapt the models to your existing database)
-- Node.js environment with Express.js
-- Environment variable management system
+- Node.js (v14+) and npm installed
+- MongoDB database set up
+- Paystack account with API keys
+- OpenAI API key (for AI functionality)
 
-## Step 1: Copy Required Files
+## Step 1: Install Dependencies
 
-Copy these essential components from the repository to your existing project:
+Add the following packages to your project:
 
-### Payment Integration Files
+```bash
+npm install express mongoose dotenv axios cors helmet express-rate-limit crypto
+```
 
-- `backend/controllers/paymentController.js` → Payment initialization and verification
-- `backend/routes/paymentRoutes.js` → API endpoints for payment operations
-- `backend/webhooks/paystackWebhook.js` → Webhook handler for Paystack events
+## Step 2: Set Up Environment Variables
 
-### Token Management Files
-
-- `backend/models/User.js` → Database model for user token tracking
-- `backend/middleware/checkTokenLimit.js` → Middleware to enforce token limits
-- `backend/utils/tokenManager.js` → Utilities for token allocation
-- `backend/controllers/tokenController.js` → Controllers for token operations
-- `backend/routes/tokenRoutes.js` → API endpoints for token management
-
-## Step 2: Configure Environment Variables
-
-Add these environment variables to your existing configuration:
+Create or update your `.env` file with the following variables:
 
 ```
-# Paystack API Keys
-PAYSTACK_SECRET_KEY=your_live_secret_key
-PAYSTACK_PUBLIC_KEY=your_live_public_key
-
-# Payment settings
-PAYMENT_CALLBACK_URL=https://your-domain.com/payment/success
+PAYSTACK_SECRET_KEY=your_secret_key_here
+PAYSTACK_PUBLIC_KEY=your_public_key_here
+PORT=5000
+MONGO_URI=mongodb+srv://your_connection_string
+EMAIL_FROM=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+PAYMENT_CALLBACK_URL=http://localhost:3000/payment/success
 VERIFY_WEBHOOK_SIGNATURE=true
-
-# Security settings (adjust as needed)
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX=100
-CORS_ORIGIN=https://your-frontend-domain.com
+CORS_ORIGIN=http://localhost:3000
+OPENAI_API_KEY=your_openai_api_key_here
+API_BASE_URL=http://localhost:5000
+NODE_ENV=development
 ```
 
-## Step 3: Database Integration
+## Step 3: Integrate Models
 
-If you're using MongoDB, you can use the User model as provided. If you're using a different database:
-
-1. Adapt the `User.js` model to your existing database schema
-2. Ensure your user model includes these fields:
-   - `tokenLimit` (Number): Maximum tokens the user can use
-   - `tokensUsed` (Number): Current token usage
-   - `resetDate` (Date): When the token count resets
-
-Example SQL schema:
-```sql
-ALTER TABLE users
-ADD COLUMN token_limit INTEGER DEFAULT 1000000,
-ADD COLUMN tokens_used INTEGER DEFAULT 0,
-ADD COLUMN reset_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-```
-
-## Step 4: Integration with Express.js
-
-Add these routes to your existing Express application:
+1. Copy the User model to your models directory
+2. If you already have a User model, merge the relevant fields:
 
 ```javascript
-// Import the routes
-const paymentRoutes = require('./path/to/paymentRoutes');
-const tokenRoutes = require('./path/to/tokenRoutes');
-const { handlePaystackWebhook } = require('./path/to/paystackWebhook');
+// Key fields to add to your existing User model
+{
+  tokenLimit: { type: Number, default: 1000000 },
+  tokensUsed: { type: Number, default: 0 },
+  resetDate: { type: Date, default: () => new Date(new Date().setDate(1)) },
+  
+  // Subscription fields
+  subscriptionId: { type: String, default: null },
+  subscriptionStatus: { type: String, enum: ['active', 'inactive', 'pending', 'cancelled'], default: 'inactive' },
+  subscriptionPlan: { type: String, enum: ['monthly', 'yearly', 'trial', 'none'], default: 'none' },
+  subscriptionStart: { type: Date, default: null },
+  subscriptionEnd: { type: Date, default: null },
+  
+  // Payment history
+  paymentHistory: [{
+    reference: String,
+    amount: Number,
+    date: { type: Date, default: Date.now },
+    status: String,
+    plan: String
+  }],
+  
+  // Token usage history
+  usageHistory: [{
+    tokens: Number,
+    date: { type: Date, default: Date.now },
+    request: String
+  }]
+}
+```
 
-// Add security middleware if not already present
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-app.use(helmet());
+3. Add the utility methods for token management and subscription checking
 
-// Configure rate limiting (except for webhooks)
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100
-});
-app.use(/^(?!\/webhook).+/, limiter);
+## Step 4: Set Up Routes and Controllers
 
-// Mount the routes
-app.use("/api/payment", paymentRoutes);
+1. Copy the following directories to your project:
+   - `controllers/`
+   - `routes/`
+   - `middleware/`
+   - `utils/`
+   - `webhooks/`
+
+2. Integrate the routes into your Express app:
+
+```javascript
+// In your main app.js or server.js file
+const tokenRoutes = require("./routes/tokenRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const aiRoutes = require("./routes/aiRoutes");
+const { handlePaystackWebhook } = require("./webhooks/paystackWebhook");
+
+// Apply routes
 app.use("/api/tokens", tokenRoutes);
+app.use("/api/payment", paymentRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/ai", aiRoutes);
+
+// Webhook endpoint (no rate limit)
 app.post("/webhook/paystack", handlePaystackWebhook);
 ```
 
-## Step 5: Frontend Integration
+## Step 5: Configure Security Middleware
 
-To integrate with your frontend application:
+Add the following security middleware to your Express app:
 
-1. **Payment Initialization**:
-   ```javascript
-   // Example React code
-   const initiatePayment = async (email, amount, userId, plan) => {
-     try {
-       const response = await axios.post('/api/payment/pay', {
-         email,
-         amount,
-         userId,
-         plan // 'monthly' or 'yearly'
-       });
-       
-       // Redirect to Paystack checkout
-       window.location.href = response.data.data.authorization_url;
-     } catch (error) {
-       console.error('Payment initialization failed:', error);
-     }
-   };
+```javascript
+const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
+const cors = require("cors");
+
+// Security middleware
+app.use(helmet()); // Add security headers
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 429,
+    error: 'Too many requests, please try again later.'
+  }
+});
+
+// Apply rate limiting to all routes except webhooks
+app.use(/^(?!\/webhook).+/, limiter);
+
+// CORS configuration
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+  credentials: true,
+  maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
+```
+
+## Step 6: Set Up Webhook Processing
+
+Ensure your webhook processing is correctly configured:
+
+```javascript
+// Body parser configuration for webhook signature verification
+app.use(bodyParser.json({
+  verify: (req, res, buf) => {
+    // Raw body needed for webhook signature verification
+    if (req.originalUrl.startsWith('/webhook')) {
+      req.rawBody = buf;
+    }
+  }
+}));
+```
+
+## Step 7: Configure Paystack Dashboard
+
+1. Log in to your Paystack dashboard
+2. Create payment plans:
+   - Monthly plan: KES 1,200/month
+   - Annual plan: KES 10,000/year
+3. Configure webhook URL:
+   - Go to Settings → API Keys & Webhooks → Webhooks
+   - Add URL: `https://yourdomain.com/webhook/paystack`
+   - Set secret key
+   - Enable webhooks
+
+## Step 8: Test the Integration
+
+1. Test payment flow:
+   ```bash
+   node test-payment.js
    ```
 
-2. **Payment Verification**:
-   ```javascript
-   // Example callback page component
-   useEffect(() => {
-     const verifyPayment = async () => {
-       const urlParams = new URLSearchParams(window.location.search);
-       const reference = urlParams.get('reference');
-       
-       if (reference) {
-         try {
-           const response = await axios.get(`/api/payment/verify?reference=${reference}`);
-           if (response.data.message === 'Payment verified & tokens assigned') {
-             // Show success message
-           }
-         } catch (error) {
-           // Handle verification error
-         }
-       }
-     };
-     
-     verifyPayment();
-   }, []);
+2. Test token usage:
+   ```bash
+   node test-token-usage.js
    ```
 
-3. **Token Usage Tracking**:
-   ```javascript
-   // Example token usage function
-   const useTokens = async (userId, tokensToUse) => {
-     try {
-       const response = await axios.post('/api/tokens/use-tokens', {
-         userId,
-         tokensToUse
-       });
-       return response.data;
-     } catch (error) {
-       if (error.response && error.response.status === 403) {
-         // Token limit exceeded
-         return { error: 'Token limit exceeded', shouldUpgrade: true };
-       }
-       return { error: 'Failed to use tokens' };
-     }
-   };
+3. Test webhooks using ngrok:
+   ```bash
+   ngrok http 5000
    ```
+   Then set the webhook URL in Paystack dashboard to your ngrok URL
 
-## Step 6: Configuring Paystack
+## Step 9: Integrate with Frontend
 
-1. Log in to your Paystack dashboard at [paystack.com](https://paystack.com)
-2. Navigate to Settings → API Keys & Webhooks
-3. Copy your live keys and add them to your environment variables
-4. Set up a webhook for payment events:
-   - URL: `https://your-domain.com/webhook/paystack`
-   - Events to receive: `charge.success`, `subscription.create`, `subscription.disable`
+1. Add Paystack checkout to your frontend:
 
-## Step 7: Testing the Integration
+```javascript
+// Example with React
+import { usePaystackPayment } from 'react-paystack';
 
-1. Make a small test payment with your Paystack test keys
-2. Verify the payment is recorded correctly
-3. Check that tokens are assigned to the user
-4. Test token usage and limits
+const config = {
+  reference: (new Date()).getTime().toString(),
+  email: user.email,
+  amount: planPrice * 100, // in kobo
+  publicKey: 'your_public_key',
+  metadata: {
+    userId: user.id,
+    plan: selectedPlan
+  }
+};
 
-## Common Integration Issues
+const onSuccess = (reference) => {
+  // Handle success
+};
 
-1. **Cross-Origin (CORS) Issues**: Ensure your backend allows requests from your frontend domain
-2. **Webhook Not Receiving Events**: Verify the webhook URL is accessible from the internet
-3. **Token Limits Not Enforced**: Check database integration for the user model fields
-4. **Payment Verification Fails**: Ensure the correct Paystack secret key is configured
+const onClose = () => {
+  // Handle closure
+};
 
-## Technical Support
+const initializePayment = usePaystackPayment(config);
 
-If your team encounters any issues during integration, please refer to:
+// In your component
+<button onClick={() => initializePayment(onSuccess, onClose)}>Pay</button>
+```
 
-- Repository: [github.com/joshuarebo/legalizeme](https://github.com/joshuarebo/legalizeme)
-- Create an issue on GitHub for technical assistance
+2. Create UI for token usage tracking:
+   - Display current token usage
+   - Show remaining tokens
+   - Visualize usage with charts
 
-## Production Considerations
+## Step 10: Add Error Handling and Monitoring
 
-1. **Security**: Ensure Paystack API keys are stored securely
-2. **Logging**: Implement comprehensive logging for payment events
-3. **Monitoring**: Set up alerts for failed payments and webhook errors
-4. **Backups**: Regularly backup your token usage data
-5. **Testing**: Thoroughly test with Paystack test mode before going live 
+1. Implement global error handler
+2. Set up logging for payment events
+3. Monitor webhook deliveries
+4. Create alert system for failed payments
+
+## Troubleshooting
+
+### Webhook Not Receiving Events
+- Verify webhook URL is correctly set in Paystack dashboard
+- Check webhook signature verification is working
+- Ensure your server is publicly accessible
+
+### Payment Not Being Processed
+- Check Paystack API keys are correct
+- Verify metadata is being sent correctly
+- Check logs for any payment processing errors
+
+### Token Usage Not Updating
+- Verify token update route is working correctly
+- Check database connection
+- Ensure user ID is being passed correctly
+
+## Additional Resources
+
+- [Paystack API Documentation](https://paystack.com/docs/api)
+- [Express.js Documentation](https://expressjs.com/)
+- [MongoDB Documentation](https://docs.mongodb.com/)
+
+For further assistance, please create an issue on the GitHub repository. 
