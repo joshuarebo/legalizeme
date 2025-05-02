@@ -363,4 +363,87 @@ For production deployment:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Document Upload & Text Extraction
+
+The system now includes multiple document upload options that can be integrated with the existing counsel page interface at [legalizeme.site/counsel](https://www.legalizeme.site/counsel).
+
+### Document Upload Options
+
+The `frontend/app/components/DocumentUploadOptions.tsx` file provides 7 different implementation options:
+
+1. **Minimal Document Upload**: A simple drag-and-drop file upload component
+2. **Full-Featured Document Upload**: Uses the existing FileUploadSection component
+3. **Chat-Integrated Upload**: Upload button integrated directly in the chat interface
+4. **Modal Document Upload**: A popup modal for document uploading
+5. **Document Processing Indicators**: Visual indicators for upload/processing status
+6. **OCR/Text Extraction**: Frontend implementation for document text extraction
+7. **Document Reference System**: System for referencing uploaded documents in conversations
+
+### Implementation Example
+
+To add document upload to the counsel page, you can use any of these components based on your UX requirements:
+
+```tsx
+import { ChatIntegratedUpload } from "../components/DocumentUploadOptions";
+
+// In your counsel page component:
+return (
+  <div className="chat-container">
+    {/* Chat messages would be here */}
+    
+    {/* Add document upload integrated with chat input */}
+    <ChatIntegratedUpload />
+  </div>
+);
+```
+
+### Text Extraction Backend
+
+The backend now includes a document text extraction endpoint at `/api/ai/extract-text` that:
+
+- Accepts document uploads (PDF, DOC, DOCX, TXT)
+- Extracts text based on file type
+- Estimates token usage (approximately 1 token per 4 characters)
+- Returns structured response with extracted text
+
+```javascript
+// Example API response:
+{
+  "text": "Extracted text content from the document...",
+  "filename": "contract.pdf",
+  "tokens": 1250
+}
+```
+
+### Document Processing Workflow
+
+The document processing workflow follows these steps:
+
+1. User uploads a document through one of the UI components
+2. Frontend sends the document to the `/api/ai/extract-text` endpoint
+3. Backend extracts text and estimates token usage
+4. Frontend displays the extracted text and/or sends it to the AI for analysis
+5. Token usage is tracked and debited from the user's account
+
+### Required Dependencies
+
+For production implementation, you'll need to install:
+
+```bash
+# Backend dependencies for document processing
+npm install multer pdf.js mammoth
+
+# Frontend dependencies (already included in the project)
+# No additional dependencies needed
+```
+
+### Production Configuration
+
+For production deployment:
+
+1. Create a uploads directory on the server: `mkdir -p backend/uploads`
+2. Ensure the directory has proper permissions for file uploads
+3. Configure the appropriate text extraction libraries based on your needs
+4. Update your rate limits if handling large documents 
